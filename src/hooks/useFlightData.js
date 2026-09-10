@@ -50,7 +50,9 @@ export default function useFlightData({
   refreshMs = 15000,
   bbox = DEFAULT_BBOX,
   extended = true,
-  demoFallback = true,
+  // Demo desactivado por defecto: preferimos ver el error real que engañar
+  // al usuario con datos falsos. Actívalo pasando `demoFallback: true`.
+  demoFallback = false,
 } = {}) {
   const [flights, setFlights] = useState([])
   const [status, setStatus] = useState('idle')
@@ -116,7 +118,7 @@ export default function useFlightData({
 
       if (res.status === 401) {
         setStatus('unauthorized')
-        setError('Credenciales OAuth rechazadas.')
+        setError('Credenciales OAuth rechazadas por OpenSky.')
         return
       }
       if (res.status === 429) {
@@ -126,7 +128,20 @@ export default function useFlightData({
         if (demoFallback && failCountRef.current >= 2) activateDemo('rate-limit')
         return
       }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      if (!res.ok) {
+        // Intentar extraer mensaje detallado del serverless proxy
+        let detail = `HTTP ${res.status}`
+        try {
+          const body = await res.clone().json()
+          if (body?.error) detail = `${res.status}: ${body.error}`
+        } catch {
+          try {
+            const txt = await res.clone().text()
+            if (txt) detail = `${res.status}: ${txt.slice(0, 200)}`
+          } catch {}
+        }
+        throw new Error(detail)
+      }
 
       const data = await res.json()
       const list = (data.states || [])

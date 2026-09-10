@@ -154,9 +154,12 @@ export default function StatsOverlay({
       </div>
 
       {error && status !== 'ok' && (
-        <div className="mt-2 flex items-start gap-2 panel rounded-xl px-3 py-2 text-[11px] text-slate-300 animate-fadeIn">
-          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 text-accent shrink-0" />
-          <span>{error}</span>
+        <div className="mt-2 flex items-start gap-2 panel rounded-xl px-3 py-2.5 text-[11px] text-slate-200 animate-fadeIn border-l-2 border-l-accent">
+          <AlertTriangle className="w-4 h-4 mt-0.5 text-accent shrink-0" />
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <span className="font-medium text-slate-100">Problema recibiendo datos</span>
+            <span className="text-slate-400 break-words">{error}</span>
+          </div>
         </div>
       )}
     </div>
