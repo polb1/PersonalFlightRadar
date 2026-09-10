@@ -53,12 +53,19 @@ export default function FlightDetails({ flight, onClose }) {
 
   return (
     <aside
-      className="absolute top-5 right-5 bottom-5 w-[360px] max-w-[calc(100vw-2.5rem)]
-                 z-[1000] animate-slideIn flex flex-col"
+      className="absolute z-[1000] flex flex-col
+                 left-2 right-2 bottom-2 max-h-[70vh] animate-slideUp safe-b
+                 sm:top-5 sm:right-5 sm:bottom-5 sm:left-auto sm:max-h-none
+                 sm:w-[360px] sm:max-w-[calc(100vw-2.5rem)] sm:animate-slideIn"
     >
-      <div className="panel rounded-2xl flex-1 flex flex-col overflow-hidden">
+      <div className="panel rounded-2xl flex-1 flex flex-col overflow-hidden min-h-0">
+        {/* Drag indicator en móvil */}
+        <div className="sm:hidden flex justify-center pt-2 pb-1">
+          <div className="w-10 h-1 rounded-full bg-white/10" />
+        </div>
+
         {/* Header con callsign prominente */}
-        <div className="px-5 pt-5 pb-4 border-b border-white/[0.05]">
+        <div className="px-4 sm:px-5 pt-3 sm:pt-5 pb-4 border-b border-white/[0.05]">
           <div className="flex items-start justify-between">
             <div className="min-w-0">
               <p className="text-[10px] font-medium tracking-[0.14em] uppercase text-slate-500 mb-1">
@@ -73,11 +80,12 @@ export default function FlightDetails({ flight, onClose }) {
             </div>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-200
-                         hover:bg-white/[0.06] transition-colors"
+              className="p-2 -m-1 rounded-lg text-slate-400 hover:text-slate-200
+                         active:bg-white/[0.08] hover:bg-white/[0.06] transition-colors
+                         touch-manipulation"
               aria-label="Cerrar"
             >
-              <X className="w-4 h-4" />
+              <X className="w-5 h-5 sm:w-4 sm:h-4" />
             </button>
           </div>
 
@@ -101,7 +109,7 @@ export default function FlightDetails({ flight, onClose }) {
         </div>
 
         {/* Datos */}
-        <div className="flex-1 px-5 scroll-clean overflow-y-auto">
+        <div className="flex-1 px-4 sm:px-5 scroll-clean overflow-y-auto overscroll-contain">
           <Field
             label="Origen"
             value={flight.origin_country}
@@ -147,7 +155,7 @@ export default function FlightDetails({ flight, onClose }) {
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-white/[0.05] bg-black/20">
+        <div className="px-4 sm:px-5 py-2.5 sm:py-3 border-t border-white/[0.05] bg-black/20">
           <p className="text-[10px] text-slate-500 tracking-wide">
             Fuente: OpenSky Network · datos en tiempo real
           </p>

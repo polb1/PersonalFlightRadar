@@ -10,12 +10,18 @@ html, body, #root {
 
 body {
   overflow: hidden;
+  overscroll-behavior: none;
   background: #020617;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
   font-feature-settings: 'cv11', 'ss01', 'ss03';
   letter-spacing: -0.01em;
 }
+
+/* Safe-area en iPhone con notch/dynamic island */
+.safe-t { padding-top: max(0.5rem, env(safe-area-inset-top)); }
+.safe-b { padding-bottom: max(0.5rem, env(safe-area-inset-bottom)); }
 
 /* Números tabulares por defecto en spans marcados */
 .num { font-variant-numeric: tabular-nums; letter-spacing: 0; }

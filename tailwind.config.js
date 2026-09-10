@@ -26,6 +26,10 @@ export default {
           '0%': { transform: 'translateX(16px)', opacity: 0 },
           '100%': { transform: 'translateX(0)', opacity: 1 },
         },
+        slideUp: {
+          '0%': { transform: 'translateY(24px)', opacity: 0 },
+          '100%': { transform: 'translateY(0)', opacity: 1 },
+        },
         ping: {
           '75%, 100%': { transform: 'scale(2)', opacity: 0 },
         },
@@ -33,6 +37,7 @@ export default {
       animation: {
         fadeIn: 'fadeIn 0.4s ease-out',
         slideIn: 'slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1)',
+        slideUp: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1)',
         'ping-slow': 'ping 2s cubic-bezier(0, 0, 0.2, 1) infinite',
       },
     },
