@@ -2,25 +2,35 @@
  * Serverless function de Vercel: OAuth2 + proxy a /states/all.
  * Env vars requeridas: OPENSKY_CLIENT_ID, OPENSKY_CLIENT_SECRET (sin VITE_).
  */
+import { Agent } from 'undici'
 
 const AUTH_URL =
   'https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token'
 const STATES_URL = 'https://opensky-network.org/api/states/all'
 
-// User-Agent explícito: undici por defecto manda algo genérico y algunos WAF
-// (posiblemente el de OpenSky) lo bloquean.
 const UA = 'SkyStreamTracker/1.0 (+https://myfr24.polb.dev)'
 
-let cachedToken = null // { token, expiresAt }
-
 /**
- * Envuelve fetch para dar diagnóstico completo cuando falla (undici solo dice
- * "fetch failed" y el motivo real vive en err.cause).
+ * Dispatcher que fuerza IPv4 y sube el timeout de conexión. Sin esto, undici
+ * intenta IPv6 primero contra auth.opensky-network.org y en algunas regiones
+ * de Vercel esa ruta está caída → CONNECT_TIMEOUT tras 10s.
  */
+const dispatcher = new Agent({
+  connect: {
+    family: 4, // IPv4 only
+    timeout: 15_000,
+  },
+  headersTimeout: 15_000,
+  bodyTimeout: 15_000,
+})
+
+let cachedToken = null
+
 async function safeFetch(url, opts, label) {
   try {
     return await fetch(url, {
       ...opts,
+      dispatcher,
       headers: { 'User-Agent': UA, ...(opts?.headers || {}) },
     })
   } catch (err) {
