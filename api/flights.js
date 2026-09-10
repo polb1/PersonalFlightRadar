@@ -1,12 +1,6 @@
 /**
  * Vercel Edge Function: OAuth2 + proxy a /states/all.
- *
- * Ejecuta en la red edge de Vercel (no en serverless regional), con un stack
- * de red distinto y rangos IP diferentes. OpenSky bloqueaba las IPs de
- * serverless-node desde fra1 (probado con /api/diagnose). Edge suele estar
- * fuera de esos rangos.
- *
- * Env vars: OPENSKY_CLIENT_ID, OPENSKY_CLIENT_SECRET (sin VITE_).
+ * Versión instrumentada — cada paso deja rastro para diagnosticar crashes.
  */
 
 export const config = { runtime: 'edge' }
@@ -16,80 +10,115 @@ const AUTH_URL =
 const STATES_URL = 'https://opensky-network.org/api/states/all'
 const UA = 'SkyStreamTracker/1.0 (+https://myfr24.polb.dev)'
 
-// Cache best-effort: en Edge no está garantizado que sobreviva entre
-// invocaciones, pero cuando una instancia se mantiene caliente ahorra
-// llamadas al endpoint de OAuth.
-let cachedToken = null
-
-async function getAccessToken() {
-  if (cachedToken && Date.now() < cachedToken.expiresAt - 60_000) {
-    return cachedToken.token
-  }
-
-  const clientId = process.env.OPENSKY_CLIENT_ID
-  const clientSecret = process.env.OPENSKY_CLIENT_SECRET
-  if (!clientId || !clientSecret) {
-    throw new Error('Faltan OPENSKY_CLIENT_ID / OPENSKY_CLIENT_SECRET')
-  }
-
-  const res = await fetch(AUTH_URL, {
-    method: 'POST',
+function jsonResponse(obj, status = 200) {
+  return new Response(JSON.stringify(obj), {
+    status,
     headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'User-Agent': UA,
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store',
     },
-    body: new URLSearchParams({
-      grant_type: 'client_credentials',
-      client_id: clientId,
-      client_secret: clientSecret,
-    }),
   })
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`OAuth ${res.status}: ${text.slice(0, 200)}`)
-  }
-
-  const data = await res.json()
-  cachedToken = {
-    token: data.access_token,
-    expiresAt: Date.now() + (Number(data.expires_in) || 1800) * 1000,
-  }
-  return cachedToken.token
 }
 
 export default async function handler(req) {
-  try {
-    const token = await getAccessToken()
+  const debug = []
+  const step = (s) => { debug.push(s); return s }
 
+  try {
+    step('start')
+
+    const clientId = process.env.OPENSKY_CLIENT_ID
+    const clientSecret = process.env.OPENSKY_CLIENT_SECRET
+    step(`env id=${!!clientId} secret=${!!clientSecret}`)
+
+    if (!clientId || !clientSecret) {
+      return jsonResponse({ error: 'missing OPENSKY_CLIENT_ID/SECRET', debug }, 500)
+    }
+
+    step('oauth POST')
+    let authRes
+    try {
+      authRes = await fetch(AUTH_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'User-Agent': UA,
+        },
+        body: new URLSearchParams({
+          grant_type: 'client_credentials',
+          client_id: clientId,
+          client_secret: clientSecret,
+        }).toString(),
+      })
+    } catch (e) {
+      return jsonResponse({
+        error: `auth fetch threw: ${e?.message || String(e)}`,
+        name: e?.name,
+        debug,
+      }, 502)
+    }
+    step(`oauth status=${authRes.status}`)
+
+    if (!authRes.ok) {
+      const text = await authRes.text().catch(() => '')
+      return jsonResponse({
+        error: `oauth http ${authRes.status}`,
+        body: text.slice(0, 500),
+        debug,
+      }, 502)
+    }
+
+    let token
+    try {
+      const data = await authRes.json()
+      token = data.access_token
+      step(`token len=${token?.length}`)
+    } catch (e) {
+      return jsonResponse({ error: `auth json parse: ${e?.message}`, debug }, 500)
+    }
+
+    if (!token) {
+      return jsonResponse({ error: 'no access_token in response', debug }, 500)
+    }
+
+    step('states GET')
     const inUrl = new URL(req.url)
     const upstream = new URL(STATES_URL)
     for (const [k, v] of inUrl.searchParams) {
       upstream.searchParams.set(k, v)
     }
 
-    const opensky = await fetch(upstream.toString(), {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'User-Agent': UA,
-      },
-    })
-    const body = await opensky.text()
+    let statesRes
+    try {
+      statesRes = await fetch(upstream.toString(), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'User-Agent': UA,
+        },
+      })
+    } catch (e) {
+      return jsonResponse({
+        error: `states fetch threw: ${e?.message || String(e)}`,
+        name: e?.name,
+        debug,
+      }, 502)
+    }
+    step(`states status=${statesRes.status}`)
 
+    const body = await statesRes.text()
     return new Response(body, {
-      status: opensky.status,
+      status: statesRes.status,
       headers: {
         'Content-Type': 'application/json; charset=utf-8',
         'Cache-Control': 'no-store',
       },
     })
   } catch (err) {
-    return new Response(
-      JSON.stringify({ error: err?.message || 'upstream error' }),
-      {
-        status: 502,
-        headers: { 'Content-Type': 'application/json; charset=utf-8' },
-      },
-    )
+    return jsonResponse({
+      error: err?.message || String(err) || 'unknown',
+      name: err?.name,
+      stack: err?.stack?.slice(0, 500),
+      debug,
+    }, 500)
   }
 }
