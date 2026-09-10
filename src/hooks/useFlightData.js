@@ -26,6 +26,11 @@ const DEFAULT_BBOX = { lamin: 35, lomin: -10, lamax: 44, lomax: 5 }
 // En dev seguimos con el proxy Vite + OAuth cliente (evita necesitar `vercel dev`).
 const USE_SERVERLESS = !import.meta.env.DEV
 
+// VITE_API_BASE permite apuntar a un backend externo (p. ej. un Cloudflare
+// Worker) cuando /api/flights de Vercel está bloqueado por el upstream.
+// Ejemplo: VITE_API_BASE=https://sky-api.polb.dev
+const API_BASE = import.meta.env.VITE_API_BASE?.replace(/\/$/, '') || ''
+
 function generateDemoFlights(n = 40) {
   const countries = ['Spain', 'France', 'Germany', 'Italy', 'United Kingdom', 'Portugal']
   const out = []
@@ -73,8 +78,12 @@ export default function useFlightData({
     }
     if (extended) params.set('extended', '1')
     const qs = params.toString()
-    // Prod: serverless proxy. Dev: proxy Vite hacia OpenSky con OAuth cliente.
-    const base = USE_SERVERLESS ? '/api/flights' : '/opensky-api/states/all'
+    // Prioridad: API_BASE externo (Worker) > serverless local (/api/flights)
+    // > dev proxy directo. En dev sin API_BASE se hace OAuth desde el navegador.
+    let base
+    if (API_BASE) base = API_BASE
+    else if (USE_SERVERLESS) base = '/api/flights'
+    else base = '/opensky-api/states/all'
     return `${base}${qs ? `?${qs}` : ''}`
   }, [bbox, extended])
 
@@ -83,7 +92,8 @@ export default function useFlightData({
       const url = buildUrl()
       const headers = {}
 
-      if (!USE_SERVERLESS && hasCredentials()) {
+      // Solo hacer OAuth cliente en dev sin API_BASE (Worker externo maneja el suyo)
+      if (!API_BASE && !USE_SERVERLESS && hasCredentials()) {
         try {
           const token = await getAccessToken()
           headers.Authorization = `Bearer ${token}`
