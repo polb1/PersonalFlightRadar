@@ -3,24 +3,12 @@ import { getAccessToken, invalidateToken, hasCredentials } from '../lib/openskyA
 import { bboxCost, chargeCredits, getUsage } from '../lib/creditTracker.js'
 
 const STATE_KEYS = [
-  'icao24',
-  'callsign',
-  'origin_country',
-  'time_position',
-  'last_contact',
-  'longitude',
-  'latitude',
-  'baro_altitude',
-  'on_ground',
-  'velocity',
-  'true_track',
-  'vertical_rate',
-  'sensors',
-  'geo_altitude',
-  'squawk',
-  'spi',
-  'position_source',
-  'category', // solo presente si pedimos extended=1
+  'icao24', 'callsign', 'origin_country',
+  'time_position', 'last_contact',
+  'longitude', 'latitude', 'baro_altitude',
+  'on_ground', 'velocity', 'true_track', 'vertical_rate',
+  'sensors', 'geo_altitude', 'squawk', 'spi', 'position_source',
+  'category',
 ]
 
 function normalize(stateArray) {
@@ -32,12 +20,11 @@ function normalize(stateArray) {
   return obj
 }
 
-/**
- * BBOX por defecto: Península Ibérica + Baleares.
- * Área ≈ (44-35) * (5-(-10)) = 135 sq° → 3 créditos.
- * Bájalo si quieres 1 crédito por petición (área ≤ 25 sq°).
- */
 const DEFAULT_BBOX = { lamin: 35, lomin: -10, lamax: 44, lomax: 5 }
+
+// En producción usamos la función serverless /api/flights (no expone el secret).
+// En dev seguimos con el proxy Vite + OAuth cliente (evita necesitar `vercel dev`).
+const USE_SERVERLESS = !import.meta.env.DEV
 
 function generateDemoFlights(n = 40) {
   const countries = ['Spain', 'France', 'Germany', 'Italy', 'United Kingdom', 'Portugal']
@@ -66,11 +53,11 @@ export default function useFlightData({
   demoFallback = true,
 } = {}) {
   const [flights, setFlights] = useState([])
-  const [status, setStatus] = useState('idle') // idle | loading | ok | error | rate-limited | demo | unauthorized
+  const [status, setStatus] = useState('idle')
   const [error, setError] = useState(null)
   const [lastUpdated, setLastUpdated] = useState(null)
   const [usage, setUsage] = useState(() => getUsage())
-  const [authed, setAuthed] = useState(hasCredentials())
+  const [authed, setAuthed] = useState(USE_SERVERLESS || hasCredentials())
   const abortRef = useRef(null)
   const failCountRef = useRef(0)
 
@@ -84,8 +71,9 @@ export default function useFlightData({
     }
     if (extended) params.set('extended', '1')
     const qs = params.toString()
-    // Ruta proxificada por Vite → https://opensky-network.org/api/states/all
-    return `/opensky-api/states/all${qs ? `?${qs}` : ''}`
+    // Prod: serverless proxy. Dev: proxy Vite hacia OpenSky con OAuth cliente.
+    const base = USE_SERVERLESS ? '/api/flights' : '/opensky-api/states/all'
+    return `${base}${qs ? `?${qs}` : ''}`
   }, [bbox, extended])
 
   const doFetch = useCallback(
@@ -93,7 +81,7 @@ export default function useFlightData({
       const url = buildUrl()
       const headers = {}
 
-      if (hasCredentials()) {
+      if (!USE_SERVERLESS && hasCredentials()) {
         try {
           const token = await getAccessToken()
           headers.Authorization = `Bearer ${token}`
@@ -109,8 +97,7 @@ export default function useFlightData({
 
       const res = await fetch(url, { headers, signal: ctrl.signal })
 
-      // Token caducado / rechazado → refrescar y reintentar una vez
-      if (res.status === 401 && retryOn401 && hasCredentials()) {
+      if (!USE_SERVERLESS && res.status === 401 && retryOn401 && hasCredentials()) {
         console.warn('[SkyStream] 401 recibido, forzando refresh de token')
         invalidateToken()
         return doFetch(false)
@@ -129,13 +116,13 @@ export default function useFlightData({
 
       if (res.status === 401) {
         setStatus('unauthorized')
-        setError('OAuth2 rechazado. Revisa CLIENT_ID/SECRET en .env.local.')
+        setError('Credenciales OAuth rechazadas.')
         return
       }
       if (res.status === 429) {
         failCountRef.current++
         setStatus('rate-limited')
-        setError('OpenSky limitó las peticiones (429). Sin créditos o demasiado rápido.')
+        setError('Servicio limitado (429). Sin créditos o demasiado rápido.')
         if (demoFallback && failCountRef.current >= 2) activateDemo('rate-limit')
         return
       }
@@ -154,10 +141,10 @@ export default function useFlightData({
         `[SkyStream] ok — ${list.length} aviones · coste ${cost} créditos · total hoy ${newUsage.used}`,
       )
 
-      if (list.length === 0 && !hasCredentials()) {
+      if (list.length === 0) {
         failCountRef.current++
-        setError('OpenSky respondió vacío (posible bloqueo anónimo).')
-        if (demoFallback && failCountRef.current >= 2) {
+        setError('Sin aviones en la zona visible.')
+        if (demoFallback && failCountRef.current >= 3) {
           activateDemo('empty')
           return
         }
@@ -173,7 +160,7 @@ export default function useFlightData({
       console.error('[SkyStream] fetch error', err)
       failCountRef.current++
       setStatus('error')
-      setError(err.message || 'Error de red contactando OpenSky.')
+      setError(err.message || 'Error de red.')
       if (demoFallback && failCountRef.current >= 2) activateDemo('error')
     }
   }, [doFetch, bbox, demoFallback])
