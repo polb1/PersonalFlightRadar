@@ -89,45 +89,6 @@ body {
               inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
-/* --- Clusters de aviones --- */
-.cluster-marker-wrapper {
-  background: transparent !important;
-  border: none !important;
-}
-
-.cluster-marker {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: rgba(15, 23, 42, 0.85);
-  color: #f5b843;
-  border: 1.5px solid rgba(245, 184, 67, 0.7);
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  backdrop-filter: blur(6px);
-  box-shadow:
-    0 0 0 3px rgba(245, 184, 67, 0.12),
-    0 2px 6px rgba(0, 0, 0, 0.4);
-  transition: transform 0.15s ease-out;
-}
-
-.cluster-marker-wrapper:hover .cluster-marker {
-  transform: scale(1.08);
-  border-color: rgba(245, 184, 67, 1);
-}
-
-/* Neutralizamos los estilos por defecto del plugin (fondo verde/amarillo/rojo) */
-.marker-cluster,
-.marker-cluster div,
-.marker-cluster-small,
-.marker-cluster-medium,
-.marker-cluster-large {
-  background: transparent !important;
-}
-.marker-cluster { background-clip: padding-box; }
-
 /* Scrollbar sutil */
 .scroll-clean::-webkit-scrollbar { width: 6px; }
 .scroll-clean::-webkit-scrollbar-track { background: transparent; }

@@ -1,9 +1,6 @@
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet'
-import MarkerClusterGroup from 'react-leaflet-cluster'
 import { useEffect, useMemo, useRef, useState, startTransition } from 'react'
 import L from 'leaflet'
-import 'leaflet.markercluster/dist/MarkerCluster.css'
-import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 
 /**
  * Silueta detallada de airliner top-down: fuselaje + cabina + alas barridas +
@@ -106,28 +103,40 @@ function BoundsWatcher({ onBoundsChange }) {
 const REVEAL_BATCH = 25
 const REVEAL_MS = 40
 
+/**
+ * Cap total de markers visibles a la vez. Suficiente para que el mapa
+ * "se sienta poblado" sin saturar el DOM ni al usuario visualmente.
+ * OpenSky puede devolver 2000-4000 aviones a vista continental.
+ */
+const MAX_MARKERS = 600
+
 function useProgressiveReveal(flights) {
   const [visible, setVisible] = useState([])
   const revealedRef = useRef(new Set())
 
   useEffect(() => {
     const revealed = revealedRef.current
-    const known = []
-    const fresh = []
-    for (const f of flights) {
-      if (revealed.has(f.icao24)) known.push(f)
-      else fresh.push(f)
-    }
-
-    // Limpieza: quitar del set los que ya no llegan (salieron del bbox o aterrizaron)
     const currentIds = new Set(flights.map((f) => f.icao24))
+
+    // 1. Limpieza: quitar del set los que ya no están en el fetch
     for (const id of revealed) if (!currentIds.has(id)) revealed.delete(id)
 
-    // startTransition marca las actualizaciones como no-urgentes: React las
-    // interrumpe si el usuario hace scroll/zoom, así el gesto tiene prioridad.
-    startTransition(() => setVisible(known))
+    // 2. Estabilidad: mantener los que ya estaban visibles
+    const kept = flights.filter((f) => revealed.has(f.icao24))
+
+    // 3. Hueco restante hasta MAX_MARKERS → añadir nuevos aviones
+    const room = Math.max(0, MAX_MARKERS - kept.length)
+    const fresh = room > 0
+      ? flights.filter((f) => !revealed.has(f.icao24)).slice(0, room)
+      : []
+
+    // 4. Mostrar los estables al instante (startTransition = no-urgente,
+    //    el zoom/scroll del usuario tiene prioridad)
+    startTransition(() => setVisible(kept))
 
     if (fresh.length === 0) return
+
+    // 5. Los nuevos entran en oleadas para el efecto stream-in
     const timers = []
     for (let i = 0; i < fresh.length; i += REVEAL_BATCH) {
       const batch = fresh.slice(i, i + REVEAL_BATCH)
@@ -141,24 +150,6 @@ function useProgressiveReveal(flights) {
   }, [flights])
 
   return visible
-}
-
-/**
- * Icono custom para los clusters — dark + acento ámbar, sin los tonos
- * default rojo/amarillo/verde que rompen el look.
- */
-function createClusterIcon(cluster) {
-  const count = cluster.getChildCount()
-  const size = count < 10 ? 32 : count < 100 ? 38 : count < 500 ? 44 : 52
-  const font = size < 40 ? 12 : size < 48 ? 13 : 14
-  return L.divIcon({
-    html: `
-      <div class="cluster-marker" style="width:${size}px;height:${size}px">
-        <span style="font-size:${font}px">${count}</span>
-      </div>`,
-    className: 'cluster-marker-wrapper',
-    iconSize: [size, size],
-  })
 }
 
 export default function MapTracker({
@@ -205,17 +196,7 @@ export default function MapTracker({
       />
       <InitialView done={initialFitDone} onDone={() => setInitialFitDone(true)} />
       {onBoundsChange && <BoundsWatcher onBoundsChange={onBoundsChange} />}
-      <MarkerClusterGroup
-        chunkedLoading
-        maxClusterRadius={50}
-        disableClusteringAtZoom={8}
-        spiderfyOnMaxZoom={false}
-        showCoverageOnHover={false}
-        animateAddingMarkers={false}
-        iconCreateFunction={createClusterIcon}
-      >
-        {markers}
-      </MarkerClusterGroup>
+      {markers}
     </MapContainer>
   )
 }
