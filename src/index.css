@@ -48,12 +48,18 @@ body {
 }
 
 /* --- Marcador de avión --- */
+@keyframes markerFadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
 .plane-marker {
   background: transparent !important;
   border: none !important;
   display: flex !important;
   align-items: center;
   justify-content: center;
+  animation: markerFadeIn 0.35s ease-out both;
 }
 
 .plane-marker .plane-rotator {

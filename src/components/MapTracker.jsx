@@ -1,5 +1,5 @@
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import L from 'leaflet'
 
 /**
@@ -93,6 +93,51 @@ function BoundsWatcher({ onBoundsChange }) {
   return null
 }
 
+/**
+ * Revela los aviones progresivamente:
+ *  - Los ya conocidos (icao24 en la ref) se muestran al instante.
+ *  - Los nuevos se sueltan en oleadas de BATCH cada BATCH_MS ms.
+ * Cuando cambia el bbox y llega una tanda entera nueva, el efecto "stream in"
+ * dura ~800ms para 500 aviones sin saturar el DOM.
+ */
+const REVEAL_BATCH = 25
+const REVEAL_MS = 40
+
+function useProgressiveReveal(flights) {
+  const [visible, setVisible] = useState([])
+  const revealedRef = useRef(new Set())
+
+  useEffect(() => {
+    const revealed = revealedRef.current
+    const known = []
+    const fresh = []
+    for (const f of flights) {
+      if (revealed.has(f.icao24)) known.push(f)
+      else fresh.push(f)
+    }
+
+    // Limpieza: quitar del set los que ya no llegan (salieron del bbox o aterrizaron)
+    const currentIds = new Set(flights.map((f) => f.icao24))
+    for (const id of revealed) if (!currentIds.has(id)) revealed.delete(id)
+
+    setVisible(known)
+
+    if (fresh.length === 0) return
+    const timers = []
+    for (let i = 0; i < fresh.length; i += REVEAL_BATCH) {
+      const batch = fresh.slice(i, i + REVEAL_BATCH)
+      const t = setTimeout(() => {
+        batch.forEach((f) => revealed.add(f.icao24))
+        setVisible((prev) => prev.concat(batch))
+      }, (i / REVEAL_BATCH) * REVEAL_MS)
+      timers.push(t)
+    }
+    return () => timers.forEach(clearTimeout)
+  }, [flights])
+
+  return visible
+}
+
 export default function MapTracker({
   flights,
   selectedId,
@@ -101,8 +146,10 @@ export default function MapTracker({
   setInitialFitDone,
   onBoundsChange,
 }) {
+  const visibleFlights = useProgressiveReveal(flights)
+
   const markers = useMemo(() => {
-    return flights.map((f) => (
+    return visibleFlights.map((f) => (
       <Marker
         key={f.icao24}
         position={[f.latitude, f.longitude]}
@@ -115,7 +162,7 @@ export default function MapTracker({
         keyboard={false}
       />
     ))
-  }, [flights, selectedId, onSelect])
+  }, [visibleFlights, selectedId, onSelect])
 
   return (
     <MapContainer
