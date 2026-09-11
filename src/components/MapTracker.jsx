@@ -1,6 +1,9 @@
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import MarkerClusterGroup from 'react-leaflet-cluster'
+import { useEffect, useMemo, useRef, useState, startTransition } from 'react'
 import L from 'leaflet'
+import 'leaflet.markercluster/dist/MarkerCluster.css'
+import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 
 /**
  * Silueta detallada de airliner top-down: fuselaje + cabina + alas barridas +
@@ -120,7 +123,9 @@ function useProgressiveReveal(flights) {
     const currentIds = new Set(flights.map((f) => f.icao24))
     for (const id of revealed) if (!currentIds.has(id)) revealed.delete(id)
 
-    setVisible(known)
+    // startTransition marca las actualizaciones como no-urgentes: React las
+    // interrumpe si el usuario hace scroll/zoom, así el gesto tiene prioridad.
+    startTransition(() => setVisible(known))
 
     if (fresh.length === 0) return
     const timers = []
@@ -128,7 +133,7 @@ function useProgressiveReveal(flights) {
       const batch = fresh.slice(i, i + REVEAL_BATCH)
       const t = setTimeout(() => {
         batch.forEach((f) => revealed.add(f.icao24))
-        setVisible((prev) => prev.concat(batch))
+        startTransition(() => setVisible((prev) => prev.concat(batch)))
       }, (i / REVEAL_BATCH) * REVEAL_MS)
       timers.push(t)
     }
@@ -136,6 +141,24 @@ function useProgressiveReveal(flights) {
   }, [flights])
 
   return visible
+}
+
+/**
+ * Icono custom para los clusters — dark + acento ámbar, sin los tonos
+ * default rojo/amarillo/verde que rompen el look.
+ */
+function createClusterIcon(cluster) {
+  const count = cluster.getChildCount()
+  const size = count < 10 ? 32 : count < 100 ? 38 : count < 500 ? 44 : 52
+  const font = size < 40 ? 12 : size < 48 ? 13 : 14
+  return L.divIcon({
+    html: `
+      <div class="cluster-marker" style="width:${size}px;height:${size}px">
+        <span style="font-size:${font}px">${count}</span>
+      </div>`,
+    className: 'cluster-marker-wrapper',
+    iconSize: [size, size],
+  })
 }
 
 export default function MapTracker({
@@ -182,7 +205,17 @@ export default function MapTracker({
       />
       <InitialView done={initialFitDone} onDone={() => setInitialFitDone(true)} />
       {onBoundsChange && <BoundsWatcher onBoundsChange={onBoundsChange} />}
-      {markers}
+      <MarkerClusterGroup
+        chunkedLoading
+        maxClusterRadius={50}
+        disableClusteringAtZoom={8}
+        spiderfyOnMaxZoom={false}
+        showCoverageOnHover={false}
+        animateAddingMarkers={false}
+        iconCreateFunction={createClusterIcon}
+      >
+        {markers}
+      </MarkerClusterGroup>
     </MapContainer>
   )
 }
