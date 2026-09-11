@@ -13,7 +13,7 @@
 const AUTH_URL =
   'https://auth.opensky-network.org/auth/realms/opensky-network/protocol/openid-connect/token'
 const STATES_URL = 'https://opensky-network.org/api/states/all'
-const UA = 'SkyStreamTracker/1.0 (+cloudflare-worker)'
+const UA = 'myfr24/1.0 (+cloudflare-worker)'
 
 const ALLOWED_ORIGIN = 'https://myfr24.polb.dev'
 

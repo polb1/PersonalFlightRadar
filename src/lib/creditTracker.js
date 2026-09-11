@@ -2,7 +2,7 @@
  * Contador de créditos OpenSky persistido en localStorage.
  * Se resetea automáticamente al cruzar medianoche UTC (día natural de la API).
  */
-const KEY = 'skystream:credits'
+const KEY = 'myfr24:credits'
 
 function todayUTC() {
   const d = new Date()

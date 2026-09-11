@@ -28,7 +28,7 @@ export default function App() {
     }, 700)
   }, [])
 
-  const { flights, status, error, lastUpdated, usage, authed, creditCost } = useFlightData({
+  const { flights, status, error, lastUpdated, usage, creditCost } = useFlightData({
     refreshMs: REFRESH_MS,
     bbox,
   })
@@ -56,7 +56,6 @@ export default function App() {
         lastUpdated={lastUpdated}
         refreshMs={REFRESH_MS}
         usage={usage}
-        authed={authed}
         creditCost={creditCost}
       />
 

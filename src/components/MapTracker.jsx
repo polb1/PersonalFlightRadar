@@ -108,7 +108,7 @@ const REVEAL_MS = 40
  * "se sienta poblado" sin saturar el DOM ni al usuario visualmente.
  * OpenSky puede devolver 2000-4000 aviones a vista continental.
  */
-const MAX_MARKERS = 600
+const MAX_MARKERS = 400
 
 function useProgressiveReveal(flights) {
   const [visible, setVisible] = useState([])

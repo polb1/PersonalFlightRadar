@@ -116,8 +116,8 @@ export default function StatsOverlay({
               />
             </svg>
             <div className="min-w-0">
-              <h1 className="text-[14px] sm:text-[15px] font-semibold text-slate-100 leading-none truncate">
-                SkyStream <span className="text-slate-500 font-normal">Tracker</span>
+              <h1 className="text-[14px] sm:text-[15px] font-semibold text-slate-100 leading-none truncate lowercase tracking-tight">
+                <span className="text-slate-500 font-normal">my</span>fr<span className="text-accent">24</span>
               </h1>
               <p className="hidden sm:block text-[10px] text-slate-500 mt-1 tracking-wide">
                 Vuelos en tiempo real
